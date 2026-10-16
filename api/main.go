@@ -1,18 +1,42 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 )
 
 func main() {
-	addr := ":" + port()
-	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, newHandler()); err != nil {
+	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// run connects to Postgres, applies migrations, and serves the API.
+func run() error {
+	ctx := context.Background()
+
+	url, err := databaseURL()
+	if err != nil {
+		return err
+	}
+
+	pool, err := connect(ctx, url)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	if err := migrate(ctx, pool); err != nil {
+		return fmt.Errorf("migrations: %w", err)
+	}
+
+	addr := ":" + port()
+	log.Printf("listening on %s", addr)
+	return http.ListenAndServe(addr, newHandler())
 }
 
 // port returns the port to listen on, defaulting to 8080.
